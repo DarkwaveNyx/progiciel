@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Progiciel</title>
+<style>
+:root{--bg:#f5f6f2;--card:#fff;--tx:#1d2a24;--mut:#66736c;--ac:#0b7a4b;--ac2:#e3f3ea;--bd:#dfe3dc;--red:#c0392b;--on:#fff;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#121815;--card:#1b241f;--tx:#e8eee9;--mut:#93a39a;--ac:#3ecf8e;--ac2:#1f3a2d;--bd:#2b3a32;--red:#ff7b6b;--on:#0b1a12;color-scheme:dark}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top,0) 0 calc(72px + env(safe-area-inset-bottom,0))}
+header{background:var(--ac);color:var(--on);padding:12px 14px}header small{opacity:.85;display:block}
+main{padding:12px;max-width:640px;margin:auto}
+h2{font-size:17px;margin:6px 0 10px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi b{display:block;font-size:19px}.kpi span{color:var(--mut);font-size:13px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--bd)}
+.row:last-child{border:0}small,.mut{color:var(--mut)}
+input,select{width:100%;padding:10px;margin:4px 0 8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit}
+label{font-size:13px;color:var(--mut)}
+.btn{background:var(--ac);color:var(--on);border:0;border-radius:8px;padding:10px 14px;font:inherit;cursor:pointer;width:100%}
+.btn.o{background:var(--ac2);color:var(--ac)}
+.msg{padding:10px;border-radius:8px;background:var(--ac2);margin-bottom:10px}.msg.e{background:#fde8e5;color:#c0392b}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--ac2);color:var(--ac);white-space:nowrap}
+.seg{display:flex;gap:4px}.seg button{border:1px solid var(--bd);background:var(--card);color:var(--mut);border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}.seg button.on{background:var(--ac2);color:var(--ac);border-color:var(--ac)}
+input.nt{width:80px;text-align:center;margin:0}
+#bul{position:fixed;inset:0;background:#fff;color:#000;overflow:auto;padding:16px;z-index:20;font-size:14px}
+#bul table{width:100%;border-collapse:collapse;margin:12px 0}#bul th,#bul td{border:1px solid #444;padding:6px;text-align:left}
+#bul .c{text-align:center}#bul img{max-height:70px}#bul .btn{margin-top:8px;color:#fff;background:#0b7a4b}
+@media print{body>*:not(#bul){display:none!important}#bul{position:static;padding:0}.nop{display:none!important}}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{flex:1;background:none;border:0;padding:8px 0;color:var(--mut);font-size:11px}
+nav button span{display:block;font-size:19px}nav button.on{color:var(--ac);font-weight:600}
+</style>
+</head>
+<body>
+<header><small>Gestion scolaire et universitaire</small><b id="hn">Progiciel</b></header>
+<main id="v">Chargement…</main>
+<nav id="nv"></nav>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.min.js"></script>
+<script>
+/* ======= A REMPLIR : Supabase > Project Settings > API ======= */
+const SUPABASE_URL='https://yfouxgorniyaxwelyimf.supabase.co';
+const SUPABASE_KEY='sb_publishable_sjkIdQJ6i27Zo_C7sb3N8Q_oC_kJ6fA';
+/* ============================================================== */
+let sb,U=null,P=null,E=null,tab='home',msg=null;
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>Math.round(+n||0).toLocaleString('fr-FR')+' GNF';
+const val=i=>$(i).value.trim();
+const bm=()=>msg?`<div class="msg ${msg.e?'e':''}">${esc(msg.t)}</div>`:'';
+function say(t,e){msg={t,e};}
+const dir=()=>P&&P.role==='direction';
+
+async function init(){
+  if(SUPABASE_URL.startsWith('COLLE')){$('v').innerHTML='<div class="msg e">Configuration manquante : ouvrez index.html et remplacez SUPABASE_URL et SUPABASE_KEY.</div>';return}
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+  const{data}=await sb.auth.getSession();U=data.session?data.session.user:null;
+  await load();
+}
+async function load(){
+  $('nv').innerHTML='';
+  if(!U){return viewAuth()}
+  const{data:p}=await sb.from('profils').select('*').eq('id',U.id).maybeSingle();P=p;
+  if(!P){return viewOnboard()}
+  const{data:e}=await sb.from('etablissements').select('*').eq('id',P.etablissement_id).single();E=e;
+  $('hn').textContent=E.nom;go(tab);
+}
+function go(t){tab=t;
+  const T=[['home','Accueil','🏠'],['el','Élèves','👥'],['no','Notes','📝'],['ap','Appel','✅'],['fr','Frais','💰'],['cl','Réglages','⚙️']];
+  $('nv').innerHTML=T.map(x=>`<button class="${tab==x[0]?'on':''}" onclick="go('${x[0]}')"><span>${x[2]}</span>${x[1]}</button>`).join('');
+  $('v').innerHTML='Chargement…';
+  ({home:viewHome,el:viewEleves,no:viewNotes,ap:viewAppel,fr:viewFrais,cl:viewClasses,me:viewMe})[tab]();
+}
+
+/* ---------- Connexion ---------- */
+function viewAuth(){$('hn').textContent='Progiciel';
+  $('v').innerHTML=`${bm()}<div class="card"><h2>Connexion</h2>
+  <label>E-mail</label><input id="em" type="email" autocomplete="email">
+  <label>Mot de passe (8 caractères minimum)</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="btn" onclick="login()">Se connecter</button><br><br>
+  <button class="btn o" onclick="signup()">Créer un compte</button></div>`;msg=null}
+async function login(){const{data,error}=await sb.auth.signInWithPassword({email:val('em'),password:$('pw').value});
+  if(error){say('Connexion impossible : '+error.message,1);return viewAuth()}U=data.user;msg=null;load()}
+async function signup(){const{data,error}=await sb.auth.signUp({email:val('em'),password:$('pw').value});
+  if(error){say('Création impossible : '+error.message,1);return viewAuth()}
+  if(!data.session){say('Compte créé. Confirmez votre e-mail, puis connectez-vous.');return viewAuth()}
+  U=data.user;msg=null;load()}
+
+/* ---------- Inscription de l'établissement ---------- */
+function viewOnboard(){$('hn').textContent='Bienvenue';
+  $('v').innerHTML=`${bm()}<div class="card"><h2>Inscrivez votre établissement</h2>
+  <label>Nom de l’établissement</label><input id="on">
+  <label>Type</label><select id="ot"><option value="ecole">École</option><option value="college">Collège</option><option value="lycee">Lycée</option><option value="universite">Université</option></select>
+  <label>Ville</label><input id="ov"><label>Contact (téléphone)</label><input id="oc">
+  <label>Votre nom</label><input id="od"><label>Votre prénom</label><input id="op">
+  <button class="btn" onclick="onboard()">Créer mon établissement</button></div>`;msg=null}
+async function onboard(){
+  const{error}=await sb.rpc('inscrire_etablissement',{p_nom:val('on'),p_type:$('ot').value,p_ville:val('ov'),p_contact:val('oc'),p_nom_directeur:val('od'),p_prenom_directeur:val('op')});
+  if(error){say('Erreur : '+error.message,1);return viewOnboard()}msg=null;load()}
+
+/* ---------- Accueil ---------- */
+async function viewHome(){
+  const{data:t}=await sb.from('tableau_bord').select('*').eq('etablissement_id',E.id).maybeSingle();
+  const{data:a}=await sb.from('annees_scolaires').select('id').eq('courante',true);
+  const x=t||{};
+  $('v').innerHTML=`${bm()}<h2>Tableau de bord</h2>${(a&&a.length)?'':'<div class="msg">Première étape : onglet Classes, créez l’année scolaire, un niveau et une classe.</div>'}
+  <div class="grid"><div class="card kpi"><b>${x.effectif_eleves??0}</b><span>Élèves inscrits</span></div>
+  <div class="card kpi"><b>${x.taux_presence_pct??'—'}${x.taux_presence_pct!=null?' %':''}</b><span>Taux de présence</span></div>
+  <div class="card kpi"><b>${fmt(x.total_encaisse)}</b><span>Total encaissé</span></div>
+  <div class="card kpi"><b>${fmt(x.total_impaye_eleves)}</b><span>Impayés</span></div></div>`;msg=null}
+
+/* ---------- Classes et paramétrage ---------- */
+async function viewClasses(){
+  const[a,n,c]=await Promise.all([
+    sb.from('annees_scolaires').select('*').order('debut',{ascending:false}),
+    sb.from('niveaux').select('*').order('libelle'),
+    sb.from('classes').select('*, niveaux(libelle), annees_scolaires(libelle)').order('nom')]);
+  const A=a.data||[],N=n.data||[],C=c.data||[];
+  const f=dir()?(h=>h):()=>'';
+  $('v').innerHTML=`${bm()}<h2>Année scolaire</h2><div class="card">
+  ${A.map(x=>`<div class="row"><span>${esc(x.libelle)}</span>${x.courante?'<span class="tag">courante</span>':''}</div>`).join('')||'<span class="mut">Aucune année.</span>'}
+  ${f(`<br><label>Libellé (ex. 2026-2027)</label><input id="al"><label>Début</label><input id="ad" type="date"><label>Fin</label><input id="af" type="date">
+  <button class="btn" onclick="addAnnee()">Ajouter et définir comme courante</button>`)}</div>
+  <h2>Niveaux</h2><div class="card">
+  ${N.map(x=>`<div class="row"><span>${esc(x.libelle)}</span></div>`).join('')||'<span class="mut">Aucun niveau.</span>'}
+  ${f(`<br><label>Nouveau niveau (ex. 7e année, Licence 1)</label><input id="nl"><button class="btn o" onclick="addNiveau()">Ajouter le niveau</button>`)}</div>
+  <h2>Classes</h2><div class="card">
+  ${C.map(x=>`<div class="row"><span>${esc(x.nom)}</span><small>${esc(x.niveaux?.libelle)} · ${esc(x.annees_scolaires?.libelle)}</small></div>`).join('')||'<span class="mut">Aucune classe.</span>'}
+  ${f(`<br><label>Nom de la classe</label><input id="cn"><label>Niveau</label><select id="cv">${N.map(x=>`<option value="${x.id}">${esc(x.libelle)}</option>`).join('')}</select>
+  <label>Année</label><select id="ca">${A.map(x=>`<option value="${x.id}">${esc(x.libelle)}</option>`).join('')}</select>
+  <button class="btn o" onclick="addClasse()">Ajouter la classe</button>`)}</div>
+  <div class="card"><div class="row"><span>${esc(P.prenom)} ${esc(P.nom)}</span><span class="tag">${esc(P.role)}</span></div><br><button class="btn o" onclick="logout()">Se déconnecter</button></div>`;msg=null}
+async function run(p,ok,back){const{error}=await p;say(error?'Erreur : '+error.message:ok,!!error);back()}
+async function addAnnee(){await sb.from('annees_scolaires').update({courante:false}).eq('etablissement_id',E.id);
+  run(sb.from('annees_scolaires').insert({etablissement_id:E.id,libelle:val('al'),debut:val('ad'),fin:val('af'),courante:true}),'Année ajoutée.',viewClasses)}
+function addNiveau(){run(sb.from('niveaux').insert({etablissement_id:E.id,libelle:val('nl')}),'Niveau ajouté.',viewClasses)}
+function addClasse(){run(sb.from('classes').insert({etablissement_id:E.id,nom:val('cn'),niveau_id:$('cv').value,annee_id:$('ca').value}),'Classe ajoutée.',viewClasses)}
+
+/* ---------- Élèves ---------- */
+async function viewEleves(){
+  const[e,c]=await Promise.all([
+    sb.from('eleves').select('*, inscriptions_eleves(classes(nom))').order('nom'),
+    sb.from('classes').select('id,nom,annee_id, annees_scolaires(courante)').order('nom')]);
+  const L=e.data||[],C=(c.data||[]).filter(x=>x.annees_scolaires&&x.annees_scolaires.courante);
+  $('v').innerHTML=`${bm()}<h2>Élèves (${L.length})</h2><div class="card">
+  ${L.map(x=>`<div class="row"><div>${esc(x.nom)} ${esc(x.prenom)}<br><small>${esc(x.tuteur_nom||'')} ${esc(x.tuteur_telephone||'')}</small></div>
+  <span class="tag">${esc(x.inscriptions_eleves?.[0]?.classes?.nom||'sans classe')}</span></div>`).join('')||'<span class="mut">Aucun élève.</span>'}</div>
+  ${dir()?`<div class="card"><h2>Ajouter un élève</h2>
+  <label>Matricule</label><input id="em"><label>Nom</label><input id="en"><label>Prénom</label><input id="ep">
+  <label>Date de naissance</label><input id="ed" type="date"><label>Tuteur</label><input id="et"><label>Téléphone du tuteur</label><input id="etl" type="tel">
+  <label>Classe (année courante)</label><select id="ec">${C.map(x=>`<option value="${x.id}" data-a="${x.annee_id}">${esc(x.nom)}</option>`).join('')}</select>
+  <button class="btn" onclick="addEleve()">Enregistrer l’élève</button></div>`:''}`;msg=null}
+async function addEleve(){
+  const o=$('ec').selectedOptions[0];
+  if(!o){say('Créez d’abord une classe dans l’année courante.',1);return viewEleves()}
+  const{data,error}=await sb.from('eleves').insert({etablissement_id:E.id,matricule:val('em'),nom:val('en'),prenom:val('ep'),date_naissance:val('ed')||null,tuteur_nom:val('et'),tuteur_telephone:val('etl')}).select().single();
+  if(error){say('Erreur : '+error.message,1);return viewEleves()}
+  run(sb.from('inscriptions_eleves').insert({etablissement_id:E.id,eleve_id:data.id,classe_id:o.value,annee_id:o.dataset.a}),'Élève enregistré.',viewEleves)}
+
+/* ---------- Outils communs ---------- */
+const opt=(a,k,l,c)=>a.map(x=>`<option value="${x[k]}"${x[k]==c?' selected':''}>${esc(typeof l==='function'?l(x):x[l])}</option>`).join('');
+const nm=e=>e.nom+' '+e.prenom;
+const MODE={especes:'Espèces',orange_money:'Orange Money',mtn_momo:'MTN MoMo',virement:'Virement'};
+async function ctx(){const[a,c,p]=await Promise.all([
+  sb.from('annees_scolaires').select('id,libelle').eq('courante',true).maybeSingle(),
+  sb.from('classes').select('id,nom,niveau_id,annee_id,annees_scolaires(courante)').order('nom'),
+  sb.from('periodes').select('*').order('ordre')]);
+  return{an:a.data,cl:(c.data||[]).filter(x=>x.annees_scolaires&&x.annees_scolaires.courante),pe:p.data||[]}}
+async function elevesDe(cid){const{data}=await sb.from('inscriptions_eleves').select('eleves(id,nom,prenom)').eq('classe_id',cid);
+  return(data||[]).map(x=>x.eleves).filter(Boolean).sort((a,b)=>a.nom.localeCompare(b.nom))}
+const noClasse='<div class="msg">Créez d’abord l’année courante et une classe (onglet Réglages).</div>';
+
+/* ---------- Notes et classement ---------- */
+let NS={c:'',p:'',m:'',ev:''};
+async function viewNotes(){
+  const X=await ctx();if(!X.cl.length){$('v').innerHTML=noClasse;return}
+  if(!X.cl.find(x=>x.id==NS.c))NS.c=X.cl[0].id;
+  if(!X.pe.find(x=>x.id==NS.p))NS.p=X.pe[0]?X.pe[0].id:'';
+  const{data:mcs}=await sb.from('matieres_classes').select('id,coefficient,matieres(nom)').eq('classe_id',NS.c);
+  const M=mcs||[];if(!M.find(x=>x.id==NS.m))NS.m=M[0]?M[0].id:'';
+  let h=`${bm()}<h2>Notes et classement</h2><div class="card"><label>Classe</label><select onchange="NS.c=this.value;NS.m='';viewNotes()">${opt(X.cl,'id','nom',NS.c)}</select>`;
+  if(!X.pe.length){h+=`<br><b>Ajoutez une période</b><label>Libellé (ex. Trimestre 1)</label><input id="pl"><label>Début</label><input id="pd" type="date"><label>Fin</label><input id="pf" type="date"><button class="btn" onclick="addPeriode('${X.an?X.an.id:''}')">Ajouter la période</button></div>`;$('v').innerHTML=h;msg=null;return}
+  h+=`<label>Période</label><select onchange="NS.p=this.value;viewNotes()">${opt(X.pe,'id','libelle',NS.p)}</select></div>
+  <div class="card"><b>Matières</b>${M.length?`<label>Matière à noter</label><select onchange="NS.m=this.value;viewNotes()">${opt(M,'id',x=>x.matieres.nom+' (coef. '+x.coefficient+')',NS.m)}</select>`:''}
+  <label>Nouvelle matière</label><input id="mn" placeholder="Mathématiques"><label>Coefficient</label><input id="mk" type="number" value="1" min="1"><button class="btn o" onclick="addMatiere()">Ajouter à la classe</button></div>`;
+  const el=await elevesDe(NS.c),nmap={};el.forEach(e=>nmap[e.id]=nm(e));
+  if(NS.m){const ev=await getEval();NS.ev=ev?ev.id:'';
+    const{data:nt}=await sb.from('notes').select('eleve_id,valeur').eq('evaluation_id',NS.ev);const nv={};(nt||[]).forEach(n=>nv[n.eleve_id]=n.valeur);
+    h+=`<div class="card"><b>Saisie (sur 20)</b>${el.map(e=>`<div class="row"><span>${esc(nm(e))}</span><input class="nt" type="number" min="0" max="20" step="0.25" inputmode="decimal" value="${nv[e.id]??''}" onchange="setNote('${e.id}',this.value)"></div>`).join('')||'<br><span class="mut">Aucun élève dans cette classe.</span>'}</div>`}
+  const{data:mp}=await sb.from('moyennes_periode').select('eleve_id,moyenne,rang').eq('classe_id',NS.c).eq('periode_id',NS.p).order('rang');
+  h+=`<div class="card"><b>Classement de la période</b>${(mp||[]).map(r=>`<div class="row"><span>${r.rang}. ${esc(nmap[r.eleve_id]||'')}</span><b>${(+r.moyenne).toFixed(2)} / 20</b></div>`).join('')||'<br><span class="mut">Saisissez des notes pour voir le classement.</span>'}</div>
+  <div class="card"><b>Bulletins de la période</b>${el.map(e=>`<div class="row"><span>${esc(nm(e))}</span><button class="btn o" style="width:auto" onclick="bulletin('${e.id}')">Bulletin</button></div>`).join('')||'<br><span class="mut">Aucun élève.</span>'}</div>`;
+  $('v').innerHTML=h;msg=null}
+async function bulletin(id){
+  const[m,pe,cl,el,mp]=await Promise.all([
+    sb.from('matieres_classes').select('id,coefficient,matieres(nom)').eq('classe_id',NS.c),
+    sb.from('periodes').select('libelle,annees_scolaires(libelle)').eq('id',NS.p).single(),
+    sb.from('classes').select('nom').eq('id',NS.c).single(),
+    sb.from('eleves').select('*').eq('id',id).single(),
+    sb.from('moyennes_periode').select('eleve_id,moyenne,rang').eq('classe_id',NS.c).eq('periode_id',NS.p)]);
+  const M=m.data||[];
+  const{data:evs}=await sb.from('evaluations').select('id,matiere_classe_id').eq('periode_id',NS.p).in('matiere_classe_id',M.map(x=>x.id));
+  const{data:nts}=await sb.from('notes').select('evaluation_id,valeur').eq('eleve_id',id).in('evaluation_id',(evs||[]).map(x=>x.id));
+  const rows=M.map(x=>{const ev=(evs||[]).find(y=>y.matiere_classe_id==x.id),n=ev&&(nts||[]).find(y=>y.evaluation_id==ev.id);
+    return{nom:x.matieres.nom,coef:x.coefficient,v:n&&n.valeur!=null?+n.valeur:null}});
+  const g=(mp.data||[]).find(r=>r.eleve_id==id),mg=g?+g.moyenne:null;
+  const ap=mg==null?'—':mg>=16?'Excellent':mg>=14?'Très bien':mg>=12?'Bien':mg>=10?'Passable':'Insuffisant';
+  const e=el.data||{};
+  let d=document.getElementById('bul');if(!d){d=document.createElement('div');d.id='bul';document.body.appendChild(d)}
+  d.innerHTML=`<div class="c" style="text-align:center">${E.logo_url?`<img src="${esc(E.logo_url)}" alt="">`:''}<h2>${esc(E.nom)}</h2><b>BULLETIN DE NOTES</b><br>${esc(pe.data?pe.data.libelle:'')} · Année ${esc(pe.data&&pe.data.annees_scolaires?pe.data.annees_scolaires.libelle:'')}</div>
+  <p><b>Élève :</b> ${esc(nm(e))}<br><b>Classe :</b> ${esc(cl.data?cl.data.nom:'')}<br><b>Matricule :</b> ${esc(e.matricule)}${e.date_naissance?'<br><b>Né(e) le :</b> '+esc(e.date_naissance):''}</p>
+  <table><tr><th>Matière</th><th class="c">Coef.</th><th class="c">Note /20</th></tr>
+  ${rows.map(r=>`<tr><td>${esc(r.nom)}</td><td class="c">${r.coef}</td><td class="c">${r.v==null?'—':r.v.toFixed(2)}</td></tr>`).join('')}
+  <tr><th colspan="2">Moyenne générale</th><th class="c">${mg==null?'—':mg.toFixed(2)}</th></tr></table>
+  <p><b>Rang :</b> ${g?g.rang+' / '+(mp.data||[]).length:'—'}<br><b>Appréciation :</b> ${ap}</p>
+  <p style="margin-top:40px">Signature de la direction :</p>
+  <button class="btn nop" onclick="window.print()">Imprimer / Enregistrer en PDF</button><br>
+  <button class="btn nop" style="background:#ddd;color:#000" onclick="document.getElementById('bul').remove()">Fermer</button>`}
+async function getEval(){let{data}=await sb.from('evaluations').select('id').eq('matiere_classe_id',NS.m).eq('periode_id',NS.p).maybeSingle();
+  if(!data){const r=await sb.from('evaluations').insert({etablissement_id:E.id,matiere_classe_id:NS.m,periode_id:NS.p,type:'composition'}).select('id').single();data=r.data}
+  return data}
+async function addPeriode(a){if(!a){say('Définissez d’abord l’année courante (Réglages).',1);return viewNotes()}
+  run(sb.from('periodes').insert({etablissement_id:E.id,annee_id:a,libelle:val('pl'),debut:val('pd'),fin:val('pf'),ordre:1}),'Période ajoutée.',viewNotes)}
+async function addMatiere(){
+  const{data,error}=await sb.from('matieres').upsert({etablissement_id:E.id,nom:val('mn')},{onConflict:'etablissement_id,nom'}).select().single();
+  if(error){say('Erreur : '+error.message,1);return viewNotes()}
+  run(sb.from('matieres_classes').insert({etablissement_id:E.id,classe_id:NS.c,matiere_id:data.id,coefficient:+val('mk')||1}),'Matière ajoutée.',viewNotes)}
+async function setNote(id,v){const x=v===''?null:Math.min(20,Math.max(0,+v));
+  const{error}=await sb.from('notes').upsert({etablissement_id:E.id,evaluation_id:NS.ev,eleve_id:id,valeur:x},{onConflict:'evaluation_id,eleve_id'});
+  if(error)say('Erreur : '+error.message,1);viewNotes()}
+
+/* ---------- Appel ---------- */
+let AP={c:'',a:''};
+async function viewAppel(){
+  const X=await ctx();if(!X.cl.length){$('v').innerHTML=noClasse;return}
+  if(!X.cl.find(x=>x.id==AP.c))AP.c=X.cl[0].id;
+  const d=new Date().toISOString().slice(0,10);
+  let{data:a}=await sb.from('appels').select('id').eq('classe_id',AP.c).eq('date_appel',d).eq('creneau','matin').maybeSingle();
+  if(!a){const r=await sb.from('appels').insert({etablissement_id:E.id,classe_id:AP.c,date_appel:d,creneau:'matin'}).select('id').single();a=r.data}
+  AP.a=a?a.id:'';
+  const el=await elevesDe(AP.c),{data:pr}=await sb.from('presences').select('eleve_id,statut').eq('appel_id',AP.a);
+  const s={},c={present:0,absent:0,retard:0};(pr||[]).forEach(p=>{s[p.eleve_id]=p.statut;c[p.statut]++});
+  $('v').innerHTML=`${bm()}<h2>Appel du jour</h2><div class="card"><label>Classe</label><select onchange="AP.c=this.value;viewAppel()">${opt(X.cl,'id','nom',AP.c)}</select>
+  <small>${new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</small>
+  ${el.map(e=>`<div class="row"><span>${esc(nm(e))}</span><div class="seg">${[['present','Présent'],['absent','Absent'],['retard','Retard']].map(t=>`<button class="${s[e.id]==t[0]?'on':''}" onclick="mark('${e.id}','${t[0]}')">${t[1]}</button>`).join('')}</div></div>`).join('')||'<br><span class="mut">Aucun élève dans cette classe.</span>'}</div>
+  <p class="mut">${c.present} présents · ${c.absent} absents · ${c.retard} en retard</p>`;msg=null}
+async function mark(id,st){const{error}=await sb.from('presences').upsert({etablissement_id:E.id,appel_id:AP.a,eleve_id:id,statut:st},{onConflict:'appel_id,eleve_id'});
+  if(error)say('Erreur : '+error.message,1);viewAppel()}
+
+/* ---------- Frais et paiements ---------- */
+let FR={p:'',rc:null};
+async function viewFrais(){
+  const X=await ctx();
+  const[t,s,n]=await Promise.all([sb.from('types_frais').select('*').order('libelle'),
+    sb.from('soldes_eleves').select('*, eleves(nom,prenom)').order('reste',{ascending:false}),
+    sb.from('niveaux').select('id,libelle').order('libelle')]);
+  const T=t.data||[],S=(s.data||[]).filter(x=>!X.an||x.annee_id==X.an.id),N=n.data||[];
+  let h=`${bm()}<h2>Frais de scolarité</h2>`;
+  if(FR.rc)h+=`<div class="card"><b>Reçu n° ${esc(FR.rc.numero_recu)}</b><br>${esc(E.nom)}<br>Payeur : ${esc(FR.rc.nom)}<br>Montant : <b>${fmt(FR.rc.montant)}</b> (${esc(MODE[FR.rc.mode]||FR.rc.mode)})<br>Date : ${esc(FR.rc.date_paiement)}<br><br><button class="btn o" onclick="window.print()">Imprimer</button><br><br><button class="btn o" onclick="FR.rc=null;viewFrais()">Fermer</button></div>`;
+  h+=`<div class="card"><b>Soldes par élève</b>${S.map(x=>`<div class="row"><div>${esc(x.eleves?nm(x.eleves):'')}<br><small>Payé ${fmt(x.paye)} sur ${fmt(x.du)}</small></div>${x.reste>0?`<button class="btn" style="width:auto" onclick="FR.p='${x.eleve_id}';viewFrais()">Encaisser</button>`:'<span class="tag">Soldé</span>'}</div>`).join('')||'<br><span class="mut">Aucun élève inscrit cette année.</span>'}</div>`;
+  if(FR.p){const x=S.find(y=>y.eleve_id==FR.p);
+    h+=`<div class="card"><b>Encaisser – ${esc(x&&x.eleves?nm(x.eleves):'')}</b><label>Frais concerné</label><select id="pt">${opt(T,'id',y=>y.libelle+' ('+fmt(y.montant)+')')}</select>
+    <label>Montant (GNF)</label><input id="pm" type="number" value="${x?x.reste:''}"><label>Mode de paiement</label><select id="pk">${Object.keys(MODE).map(k=>`<option value="${k}">${MODE[k]}</option>`).join('')}</select>
+    <label>Référence (facultatif)</label><input id="pr"><button class="btn" onclick="pay()">Valider et générer le reçu</button><br><br><button class="btn o" onclick="FR.p='';viewFrais()">Annuler</button></div>`}
+  h+=`<div class="card"><b>Définir un frais</b><label>Libellé</label><input id="fl" placeholder="Scolarité"><label>Montant (GNF)</label><input id="fm" type="number">
+  <label>Niveau concerné</label><select id="fn">${opt(N,'id','libelle')}</select><label>Catégorie</label><select id="fc"><option value="scolarite">Scolarité</option><option value="inscription">Inscription</option><option value="autre">Autre</option></select>
+  <button class="btn o" onclick="addFrais('${X.an?X.an.id:''}')">Ajouter le frais</button></div>`;
+  $('v').innerHTML=h;msg=null}
+async function pay(){const m=+val('pm');
+  if(!$('pt').value){say('Définissez d’abord un frais (en bas de la page).',1);return viewFrais()}
+  if(!(m>0)){say('Montant invalide.',1);return viewFrais()}
+  const{data,error}=await sb.from('paiements').insert({etablissement_id:E.id,eleve_id:FR.p,type_frais_id:$('pt').value,montant:m,mode:$('pk').value,reference:val('pr')||null}).select('numero_recu,montant,mode,date_paiement,eleves(nom,prenom)').single();
+  if(error){say('Erreur : '+error.message,1);return viewFrais()}
+  FR.rc={...data,nom:data.eleves?nm(data.eleves):''};FR.p='';viewFrais()}
+function addFrais(a){if(!a){say('Définissez d’abord l’année courante (Réglages).',1);return viewFrais()}
+  run(sb.from('types_frais').insert({etablissement_id:E.id,annee_id:a,libelle:val('fl'),montant:+val('fm'),niveau_id:$('fn').value,categorie:$('fc').value}),'Frais ajouté.',viewFrais)}
+
+/* ---------- Compte ---------- */
+function viewMe(){$('v').innerHTML=`<h2>Mon compte</h2><div class="card">
+  <div class="row"><span>${esc(P.prenom)} ${esc(P.nom)}</span><span class="tag">${esc(P.role)}</span></div>
+  <div class="row"><span>Établissement</span><span>${esc(E.nom)}</span></div>
+  <div class="row"><span>Devise</span><span>${esc(E.devise)}</span></div></div>
+  <button class="btn o" onclick="logout()">Se déconnecter</button>`}
+async function logout(){await sb.auth.signOut();U=P=E=null;msg=null;load()}
+init();
+</script>
+</body>
+</html>
