@@ -19,6 +19,7 @@ h2{font-size:17px;margin:6px 0 10px}
 .row:last-child{border:0}small,.mut{color:var(--mut)}
 input,select{width:100%;padding:10px;margin:4px 0 8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit}
 label{font-size:13px;color:var(--mut)}
+input,select{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none}main{overflow-x:hidden}
 .btn{background:var(--ac);color:var(--on);border:0;border-radius:8px;padding:10px 14px;font:inherit;cursor:pointer;width:100%}
 .btn.o{background:var(--ac2);color:var(--ac)}
 .msg{padding:10px;border-radius:8px;background:var(--ac2);margin-bottom:10px}.msg.e{background:#fde8e5;color:#c0392b}
@@ -95,7 +96,13 @@ function viewOnboard(){$('hn').textContent='Bienvenue';
   <label>Type</label><select id="ot"><option value="ecole">École</option><option value="college">Collège</option><option value="lycee">Lycée</option><option value="universite">Université</option></select>
   <label>Ville</label><input id="ov"><label>Contact (téléphone)</label><input id="oc">
   <label>Votre nom</label><input id="od"><label>Votre prénom</label><input id="op">
-  <button class="btn" onclick="onboard()">Créer mon établissement</button></div>`;msg=null}
+  <button class="btn" onclick="onboard()">Créer mon établissement</button></div>
+  <div class="card"><h2>J’ai un code d’invitation</h2><label>Code reçu de la direction</label><input id="jc">
+  <label>Votre nom</label><input id="jn"><label>Votre prénom</label><input id="jp">
+  <button class="btn o" onclick="joinCode()">Rejoindre mon établissement</button></div>`;msg=null}
+async function joinCode(){
+  const{error}=await sb.rpc('rejoindre_etablissement',{p_code:val('jc'),p_nom:val('jn'),p_prenom:val('jp')});
+  if(error){say('Erreur : '+error.message,1);return viewOnboard()}msg=null;load()}
 async function onboard(){
   const{error}=await sb.rpc('inscrire_etablissement',{p_nom:val('on'),p_type:$('ot').value,p_ville:val('ov'),p_contact:val('oc'),p_nom_directeur:val('od'),p_prenom_directeur:val('op')});
   if(error){say('Erreur : '+error.message,1);return viewOnboard()}msg=null;load()}
@@ -105,7 +112,7 @@ async function viewHome(){
   const{data:t}=await sb.from('tableau_bord').select('*').eq('etablissement_id',E.id).maybeSingle();
   const{data:a}=await sb.from('annees_scolaires').select('id').eq('courante',true);
   const x=t||{};
-  $('v').innerHTML=`${bm()}<h2>Tableau de bord</h2>${(a&&a.length)?'':'<div class="msg">Première étape : onglet Classes, créez l’année scolaire, un niveau et une classe.</div>'}
+  $('v').innerHTML=`${bm()}<h2>Tableau de bord</h2>${(a&&a.length)?'':'<div class="msg">Première étape : onglet Réglages, créez l’année scolaire, un niveau et une classe.</div>'}
   <div class="grid"><div class="card kpi"><b>${x.effectif_eleves??0}</b><span>Élèves inscrits</span></div>
   <div class="card kpi"><b>${x.taux_presence_pct??'—'}${x.taux_presence_pct!=null?' %':''}</b><span>Taux de présence</span></div>
   <div class="card kpi"><b>${fmt(x.total_encaisse)}</b><span>Total encaissé</span></div>
@@ -131,7 +138,16 @@ async function viewClasses(){
   ${f(`<br><label>Nom de la classe</label><input id="cn"><label>Niveau</label><select id="cv">${N.map(x=>`<option value="${x.id}">${esc(x.libelle)}</option>`).join('')}</select>
   <label>Année</label><select id="ca">${A.map(x=>`<option value="${x.id}">${esc(x.libelle)}</option>`).join('')}</select>
   <button class="btn o" onclick="addClasse()">Ajouter la classe</button>`)}</div>
-  <div class="card"><div class="row"><span>${esc(P.prenom)} ${esc(P.nom)}</span><span class="tag">${esc(P.role)}</span></div><br><button class="btn o" onclick="logout()">Se déconnecter</button></div>`;msg=null}
+  <div class="card"><div class="row"><span>${esc(P.prenom)} ${esc(P.nom)}</span><span class="tag">${esc(P.role)}</span></div><br><button class="btn o" onclick="logout()">Se déconnecter</button></div><div id="eq"></div>`;msg=null;if(dir())equipe()}
+async function equipe(){
+  const[a,b]=await Promise.all([sb.from('profils').select('nom,prenom,role').order('nom'),sb.from('invitations').select('*').eq('utilise',false)]);
+  $('eq').innerHTML=`<h2>Équipe</h2><div class="card">${(a.data||[]).map(x=>`<div class="row"><span>${esc(x.prenom)} ${esc(x.nom)}</span><span class="tag">${esc(x.role)}</span></div>`).join('')}</div>
+  <div class="card"><b>Inviter un collègue</b><label>Rôle</label><select id="ir"><option value="enseignant">Enseignant</option><option value="comptable">Comptable</option><option value="scolarite_univ">Scolarité université</option></select>
+  <button class="btn o" onclick="invite()">Générer un code</button>
+  ${(b.data||[]).map(x=>`<div class="row"><span><b>${esc(x.code)}</b></span><span class="tag">${esc(x.role)}</span></div>`).join('')}
+  <p class="mut">Le collègue crée son compte dans l’application, puis choisit « J’ai un code d’invitation ».</p></div>`}
+async function invite(){const{error}=await sb.from('invitations').insert({etablissement_id:E.id,role:$('ir').value});
+  if(error)say('Erreur : '+error.message,1);viewClasses()}
 async function run(p,ok,back){const{error}=await p;say(error?'Erreur : '+error.message:ok,!!error);back()}
 async function addAnnee(){await sb.from('annees_scolaires').update({courante:false}).eq('etablissement_id',E.id);
   run(sb.from('annees_scolaires').insert({etablissement_id:E.id,libelle:val('al'),debut:val('ad'),fin:val('af'),courante:true}),'Année ajoutée.',viewClasses)}
